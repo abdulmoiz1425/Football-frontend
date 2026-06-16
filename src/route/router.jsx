@@ -9,6 +9,7 @@ import LoginRoute from "../components/authentication/LoginRoute";
 import AuthCallback from "../pages/AuthCallback";
 import PlayesTable from "../pages/players-list";
 import EvaluationForm from "../pages/Evaluation";
+import PlayerStatsForm from "../components/Players/PlayerStatsForm";
 import MatchTable from "../pages/Match-table";
 import Coach from "../pages/coach";
 import Reports from "../pages/reports";
@@ -180,6 +181,14 @@ export const router = createBrowserRouter([
                 element: (
 
                     <EvaluationForm />
+
+                )
+            },
+            {
+                path: "/player-stats/:id",
+                element: (
+
+                    <PlayerStatsForm />
 
                 )
             },

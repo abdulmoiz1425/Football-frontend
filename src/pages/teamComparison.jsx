@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import ExcelJS from 'exceljs'
 import CustomersHeader from '@/components/Players/PlayersHeader'
 import PageHeader from '@/components/shared/pageHeader/PageHeader'
 import Footer from '@/components/shared/Footer'
-// Assuming you have topTost and topTostError imported, as is common practice
-import topTost from '../utils/topTost'; 
+import topTost, { topTostError } from '../utils/topTost';
 
 
 
@@ -23,6 +23,7 @@ const TeamComparisonPage = () => {
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editedData, setEditedData] = useState({});
     const [saving, setSaving] = useState(false);
+    const [downloading, setDownloading] = useState(false);
 
     // Stat Labels (Excluding 'matches' from the mapped list for the main table)
     const statLabels = [
@@ -173,6 +174,111 @@ const TeamComparisonPage = () => {
         navigate(-1);
     };
 
+    const downloadExcel = async () => {
+        if (!teamData) return;
+
+        setDownloading(true);
+        try {
+            const token = localStorage.getItem("authToken");
+
+            // Load logo as base64
+            const logoBase64 = await fetch("/images/football-vector-free-11.png")
+                .then(r => r.blob())
+                .then(blob => new Promise((res, rej) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => res(reader.result.split(",")[1]);
+                    reader.onerror = rej;
+                    reader.readAsDataURL(blob);
+                }));
+
+            // Per-player stats
+            const res = await fetch(`${BASE_URL}/api/stats/players/${teamId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const json = await res.json();
+            const players = json.players || [];
+
+            const wb = new ExcelJS.Workbook();
+            const logoImageId = wb.addImage({ base64: logoBase64, extension: "png" });
+
+            // Helper: add logo + header row to a sheet
+            const addLogoAndHeader = (ws, title) => {
+                // Logo top-left (spans cols A-C, rows 1-3)
+                ws.addImage(logoImageId, { tl: { col: 0, row: 0 }, br: { col: 2, row: 3 } });
+
+                // Title cell
+                ws.mergeCells("D1:H3");
+                const titleCell = ws.getCell("D1");
+                titleCell.value = title;
+                titleCell.font = { bold: true, size: 14, color: { argb: "FF2980B9" } };
+                titleCell.alignment = { vertical: "middle", horizontal: "center" };
+
+                // Website cell
+                ws.mergeCells("A4:H4");
+                const siteCell = ws.getCell("A4");
+                siteCell.value = "www.sportsassessor.com";
+                siteCell.font = { italic: true, size: 9, color: { argb: "FF888888" } };
+                siteCell.alignment = { horizontal: "center" };
+
+                ws.addRow([]); // blank row before data
+            };
+
+            // ── Sheet 1: Team Totals ──────────────────────────────────────────
+            const ws1 = wb.addWorksheet("Team Totals");
+            ws1.columns = [
+                { width: 28 }, { width: 22 }, { width: 26 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 },
+            ];
+            addLogoAndHeader(ws1, "Team Statistics");
+
+            const hdr1 = ws1.addRow(["Stat", "Raw Total", "Per Match Average"]);
+            hdr1.eachCell(cell => {
+                cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+                cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1a1a2e" } };
+                cell.alignment = { horizontal: "center" };
+            });
+
+            ws1.addRow(["Matches", getTeamValue(teamData.rawTeam, "matches"), "-"]);
+            statLabels.forEach(({ key, label }) => {
+                ws1.addRow([label, getTeamValue(teamData.rawTeam, key), getTeamValue(teamData.team, key).toFixed(2)]);
+            });
+
+            // ── Sheet 2: Players ─────────────────────────────────────────────
+            const ws2 = wb.addWorksheet("Players");
+            ws2.columns = [
+                { width: 22 }, { width: 28 }, { width: 8 }, { width: 10 },
+                ...statLabels.map(() => ({ width: 18 })),
+            ];
+            addLogoAndHeader(ws2, "Player Breakdown");
+
+            const hdr2 = ws2.addRow(["Player Name", "Email", "Age", "Matches", ...statLabels.map(s => s.label)]);
+            hdr2.eachCell(cell => {
+                cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+                cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1a1a2e" } };
+                cell.alignment = { horizontal: "center" };
+            });
+
+            players.forEach(p => {
+                ws2.addRow([p.p_name, p.p_email, p.p_age, p.matches || 0, ...statLabels.map(({ key }) => p[key] || 0)]);
+            });
+
+            // Download
+            const buffer = await wb.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `team-${teamId}-stats.xlsx`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+        } catch (err) {
+            console.error("Excel export error:", err);
+            topTost("Failed to generate Excel file: " + err.message);
+        } finally {
+            setDownloading(false);
+        }
+    };
+
     // Safe data access
     const getTeamValue = (data, key) => {
         if (!data) return 0;
@@ -197,17 +303,28 @@ const TeamComparisonPage = () => {
                         </button>
 
                         <h4 className="mb-0">Team Statistics</h4>
-                        
-                        {user?.role !== "ADMIN" && (
+
+                        <div className="d-flex gap-2">
                             <button
-                                className="btn btn-warning d-flex align-items-center gap-2"
-                                onClick={handleEditClick}
-                                disabled={loading || !teamData}
+                                className="btn btn-success d-flex align-items-center gap-2"
+                                onClick={downloadExcel}
+                                disabled={loading || !teamData || downloading}
                             >
-                                <i className="bi bi-pencil"></i>
-                                Edit Stats
+                                <i className="bi bi-file-earmark-excel"></i>
+                                {downloading ? "Preparing..." : "Download Excel"}
                             </button>
-                        )}
+
+                            {user?.role !== "ADMIN" && (
+                                <button
+                                    className="btn btn-warning d-flex align-items-center gap-2"
+                                    onClick={handleEditClick}
+                                    disabled={loading || !teamData}
+                                >
+                                    <i className="bi bi-pencil"></i>
+                                    Edit Stats
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {loading ? (
@@ -231,7 +348,7 @@ const TeamComparisonPage = () => {
                                 <thead className="text-white bg-dark">
                                     <tr>
                                         <th>Stat</th>
-                                        <th className="text-center">Team Actual Value (Raw Total)</th>
+                                        <th className="text-center">Team Actual Score (Raw Total)</th>
                                         <th className="text-center">Team Score Per Match (Average)</th>
                                     </tr>
                                 </thead>

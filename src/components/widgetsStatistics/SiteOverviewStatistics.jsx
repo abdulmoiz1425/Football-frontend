@@ -213,12 +213,7 @@ const Dashboard = () => {
               <div className="card-body">
                 <div className="row g-3">
                   {players
-                    .filter(player =>
-                      player.Player_Behavior_Overall_Score !== "N/A" &&
-                      player.Player_Behavior_Overall_Score !== null &&
-                      player.Player_Behavior_Overall_Score !== undefined
-                    )
-                    .map((player, index) => (
+                    .map((player) => (
                       <div key={player.p_id} className="col-xl-3 col-lg-4 col-md-6">
                         <div className={`card h-100 ${topPlayer && player.p_id === topPlayer.p_id ? 'border-success border-2' : ''}`}>
                           <div className="card-body">
@@ -238,8 +233,9 @@ const Dashboard = () => {
                               <div className="d-flex justify-content-between align-items-center mb-2">
                                 <span className="small text-muted">Behavior Score:</span>
                                 <span className="fw-bold text-primary">
-                                  {Number(player.Player_Behavior_Overall_Score).toFixed(2)}%
-
+                                  {player.Player_Behavior_Overall_Score === "N/A"
+                                    ? "N/A"
+                                    : `${Number(player.Player_Behavior_Overall_Score).toFixed(2)}%`}
                                 </span>
                               </div>
 

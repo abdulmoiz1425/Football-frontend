@@ -23,6 +23,7 @@
     "chartjs-plugin-datalabels": "^2.2.0",
     "date-fns": "^3.6.0",
     "emoji-picker-react": "^4.12.0",
+    "exceljs": "^4.4.0",
     "feather-icons": "^4.29.2",
     "feather-icons-react": "^0.7.0",
     "jspdf": "^3.0.4",
@@ -46,7 +47,8 @@
     "react-router-dom": "^6.26.1",
     "react-select": "^5.8.1",
     "sweetalert2": "^11.14.1",
-    "sweetalert2-react-content": "^5.0.7"
+    "sweetalert2-react-content": "^5.0.7",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",

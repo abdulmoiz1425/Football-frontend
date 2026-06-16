@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import ExcelJS from 'exceljs'
 import CustomersHeader from '@/components/Players/PlayersHeader'
 import PageHeader from '@/components/shared/pageHeader/PageHeader'
 import Footer from '@/components/shared/Footer'
-import topTost from '../utils/topTost'; // Assuming topTost is for success toasts
+import topTost, { topTostError } from '../utils/topTost';
 
 
 
@@ -21,6 +22,15 @@ const Comparison = () => {
     const [editedData, setEditedData] = useState({});
     const [saving, setSaving] = useState(false);
     const user = JSON.parse(localStorage.getItem("user"));
+
+    const [expectedGoals, setExpectedGoals] = useState(null);
+    const [expectedGoalsError, setExpectedGoalsError] = useState("");
+
+    const [probabilities, setProbabilities] = useState(null);
+    const [selectedProbStat, setSelectedProbStat] = useState("goals");
+
+    const [sendingLink, setSendingLink] = useState(false);
+    const [downloading, setDownloading] = useState(false);
 
 
     useEffect(() => {
@@ -57,6 +67,56 @@ const Comparison = () => {
         } finally {
             setLoadingComparison(false);
         }
+
+        loadExpectedGoals();
+        loadProbabilities();
+    };
+
+    const loadExpectedGoals = async () => {
+        try {
+            const token = localStorage.getItem("authToken");
+
+            const res = await fetch(
+                `${BASE_URL}/api/coach/stats/expected-goals/${playerId}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            const json = await res.json();
+
+            if (!res.ok) {
+                setExpectedGoals(null);
+                setExpectedGoalsError(json.message || "Failed to load expected goals");
+                return;
+            }
+
+            setExpectedGoalsError("");
+            setExpectedGoals(json);
+        } catch (err) {
+            setExpectedGoals(null);
+            setExpectedGoalsError("Failed to load expected goals: " + err.message);
+        }
+    };
+
+    const loadProbabilities = async () => {
+        try {
+            const token = localStorage.getItem("authToken");
+
+            const res = await fetch(
+                `${BASE_URL}/api/coach/stats/probability/${playerId}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            const json = await res.json();
+
+            if (!res.ok) {
+                setProbabilities(null);
+                return;
+            }
+
+            setProbabilities(json);
+        } catch (err) {
+            setProbabilities(null);
+        }
     };
 
     const getPercentageDiff = (playerVal, teamVal) => {
@@ -70,6 +130,14 @@ const Comparison = () => {
         // For stats like cautions or ejections, a lower number is better, but the comparison here
         // simply shows the ratio to the team average.
         return ((p / t) * 100).toFixed(1);
+    };
+
+    // Predicted goals for the next match: the player's average goals per
+    // match (Poisson lambda), rounded to a whole number
+    const getPredictedGoals = () => {
+        const lambda = probabilities?.stats?.goals?.player?.lambda;
+        if (lambda === undefined) return null;
+        return Math.round(lambda);
     };
 
     const getDiffColor = (diff) => {
@@ -96,10 +164,47 @@ const Comparison = () => {
         { key: "defensive_actions", label: "Defensive Actions" },
     ];
 
+    // Stats supported by the Poisson probability endpoint (count-based stats only)
+    const probStatLabels = [
+        { key: "goals", label: "Goals" },
+        { key: "assists", label: "Assists" },
+        { key: "shots", label: "Shots" },
+        { key: "shots_on_goal", label: "Shots On Goal" },
+        { key: "big_chances", label: "Big Chances" },
+        { key: "key_passes", label: "Key Passes" },
+        { key: "tackles", label: "Tackles" },
+        { key: "cautions", label: "Cautions" },
+        { key: "ejections", label: "Ejections" },
+        { key: "progressive_carries", label: "Progressive Carries" },
+        { key: "defensive_actions", label: "Defensive Actions" },
+    ];
+
     const handleEditClick = () => {
         // Ensure we use the raw data for editing
         setEditedData(comparisonData?.rawPlayer || {});
         setEditModalOpen(true);
+    };
+
+    const handleSendStatsLink = async () => {
+        setSendingLink(true);
+        try {
+            const token = localStorage.getItem("authToken");
+
+            const res = await fetch(`${BASE_URL}/api/coach/stats/send-stats-link/${playerId}`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) throw new Error(data.message || "Failed to send link");
+
+            topTost(`Stats link sent to ${data.email}`);
+        } catch (err) {
+            alert("Failed to send stats link: " + err.message);
+        } finally {
+            setSendingLink(false);
+        }
     };
 
     const handleInputChange = (key, value) => {
@@ -169,6 +274,113 @@ const Comparison = () => {
 
     const handleBack = () => navigate(-1);
 
+    const downloadExcel = async () => {
+        if (!comparisonData) return;
+
+        setDownloading(true);
+        try {
+            // Load logo as base64
+            const logoBase64 = await fetch("/images/football-vector-free-11.png")
+                .then(r => r.blob())
+                .then(blob => new Promise((res, rej) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => res(reader.result.split(",")[1]);
+                    reader.onerror = rej;
+                    reader.readAsDataURL(blob);
+                }));
+
+            const wb = new ExcelJS.Workbook();
+            const logoImageId = wb.addImage({ base64: logoBase64, extension: "png" });
+
+            // Helper: add logo + title header to a sheet
+            const addLogoAndHeader = (ws, title) => {
+                ws.addImage(logoImageId, { tl: { col: 0, row: 0 }, br: { col: 2, row: 3 } });
+
+                ws.mergeCells("D1:H3");
+                const titleCell = ws.getCell("D1");
+                titleCell.value = title;
+                titleCell.font = { bold: true, size: 14, color: { argb: "FF2980B9" } };
+                titleCell.alignment = { vertical: "middle", horizontal: "center" };
+
+                ws.mergeCells("A4:H4");
+                const siteCell = ws.getCell("A4");
+                siteCell.value = "www.sportsassessor.com";
+                siteCell.font = { italic: true, size: 9, color: { argb: "FF888888" } };
+                siteCell.alignment = { horizontal: "center" };
+
+                ws.addRow([]); // blank spacer before data
+            };
+
+            const darkHeader = (row) => {
+                row.eachCell(cell => {
+                    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+                    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1a1a2e" } };
+                    cell.alignment = { horizontal: "center" };
+                });
+            };
+
+            // ── Sheet 1: Per-Match Averages ───────────────────────────────────
+            const ws1 = wb.addWorksheet("Per-Match Averages");
+            ws1.columns = [
+                { width: 24 }, { width: 22 }, { width: 24 }, { width: 22 }, { width: 28 },
+                { width: 10 }, { width: 10 }, { width: 10 },
+            ];
+            addLogoAndHeader(ws1, "Player vs Team Comparison");
+            darkHeader(ws1.addRow(["Stat", "Actual Player Score", "Player Score Per Match", "Team Score Per Match", "Player Score Contribution (%)"]));
+
+            statLabels.forEach(({ key, label }) => {
+                const rawPlayerVal = parseFloat(safeRaw[key] || 0);
+                const playerAvg = parseFloat(safePlayer[key] || 0);
+                const teamAvg = parseFloat(safeTeam[key] || 0);
+                ws1.addRow([label, rawPlayerVal, playerAvg.toFixed(2), teamAvg.toFixed(2), getPercentageDiff(playerAvg, teamAvg) + "%"]);
+            });
+
+            // ── Sheet 2: Expected Goals ───────────────────────────────────────
+            if (expectedGoals) {
+                const ws2 = wb.addWorksheet("Expected Goals");
+                ws2.columns = [{ width: 20 }, { width: 20 }, { width: 16 }, { width: 30 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }];
+                addLogoAndHeader(ws2, "Expected Goals Analysis");
+                darkHeader(ws2.addRow(["Actual Goals", "Expected Goals", "Difference", "Predicted Goals (Next Match)"]));
+                ws2.addRow([
+                    expectedGoals.actualGoals,
+                    Math.round(expectedGoals.expectedGoals),
+                    Math.round(expectedGoals.diff),
+                    getPredictedGoals() ?? "",
+                ]);
+            }
+
+            // ── Sheet 3: Match Probability ────────────────────────────────────
+            const probDist = probabilities?.stats?.[selectedProbStat];
+            if (probDist) {
+                const statLabel = probStatLabels.find(s => s.key === selectedProbStat)?.label || selectedProbStat;
+                const ws3 = wb.addWorksheet("Match Probability");
+                ws3.columns = [{ width: 20 }, { width: 24 }, { width: 22 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }];
+                addLogoAndHeader(ws3, `Match Probability — ${statLabel}`);
+                darkHeader(ws3.addRow([statLabel, "Player Probability (%)", "Team Probability (%)"]));
+                probDist.player.distribution.forEach((row, idx) => {
+                    const teamRow = probDist.team.distribution[idx];
+                    ws3.addRow([row.k, (row.probability * 100).toFixed(1) + "%", (teamRow.probability * 100).toFixed(1) + "%"]);
+                });
+            }
+
+            // Download
+            const buffer = await wb.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `player-${playerId}-comparison.xlsx`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+        } catch (err) {
+            console.error("Excel export error:", err);
+            topTost("Failed to generate Excel file: " + err.message);
+        } finally {
+            setDownloading(false);
+        }
+    };
+
     const safePlayer = comparisonData?.player || {};
     const safeTeam = comparisonData?.team || {};
     const safeRaw = comparisonData?.rawPlayer || {};
@@ -188,16 +400,45 @@ const Comparison = () => {
 
                         <h4 className="mb-0">Player vs Team Comparison</h4>
 
-                        <div>
+                        <div className="d-flex gap-2">
+                            <button
+                                className="btn btn-success d-flex align-items-center gap-2"
+                                onClick={downloadExcel}
+                                disabled={loadingComparison || !comparisonData || downloading}
+                            >
+                                <i className="bi bi-file-earmark-excel"></i>
+                                {downloading ? "Preparing..." : "Download Excel"}
+                            </button>
+
                             {/* Assuming only non-ADMIN roles can edit */}
                             {user?.role !== "ADMIN" && (
-                                <button
-                                    className="btn btn-warning d-flex align-items-center gap-2"
-                                    onClick={handleEditClick}
-                                    disabled={loadingComparison || !comparisonData}
-                                >
-                                    <i className="bi bi-pencil"></i> Edit Stats
-                                </button>
+                                <>
+                                    <button
+                                        className="btn btn-warning d-flex align-items-center gap-2"
+                                        onClick={handleEditClick}
+                                        disabled={loadingComparison || !comparisonData}
+                                    >
+                                        <i className="bi bi-pencil"></i> Edit Stats
+                                    </button>
+
+                                    <button
+                                        className="btn btn-info text-white d-flex align-items-center gap-2"
+                                        onClick={handleSendStatsLink}
+                                        disabled={loadingComparison || !comparisonData || sendingLink}
+                                        title="Email this player a link to fill in their own stats"
+                                    >
+                                        {sendingLink ? (
+                                            <>
+                                                <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                                Sending...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <i className="bi bi-send"></i> Send Link to Player
+                                            </>
+                                        )}
+                                    </button>
+                                </>
                             )}
                         </div>
                     </div>
@@ -216,17 +457,18 @@ const Comparison = () => {
                             </button>
                         </div>
                     ) : (
+                        <>
                         <div className="table-responsive">
                             <h5>Per-Match Averages (Matches Played: {safeRaw.matches || 0})</h5>
 
                             <table className="table table-striped table-hover">
                                 <thead className="text-white bg-dark">
                                     <tr>
-                                        <th>Stat</th>
-                                        <th className="text-center">Actual Player Value</th>
+                                        <th>stat</th>
+                                        <th className="text-center">Actual Player Score</th>
                                         <th className="text-center">Player Score Per Match</th>
                                         <th className="text-center">Team Score Per Match</th>
-                                        <th className="text-center">Player Contribution</th>
+                                        <th className="text-center">Player Score Contribution</th>
                                     </tr>
                                 </thead>
 
@@ -242,7 +484,7 @@ const Comparison = () => {
                                             <tr key={key}>
                                                 <td className="fw-semibold">{label}</td>
                                                 {/* Display raw total value */}
-                                                <td className="text-center">{rawPlayerVal}</td> 
+                                                <td className="text-center">{rawPlayerVal}</td>
                                                 <td className="text-center">{playerAvg.toFixed(2)}</td>
                                                 <td className="text-center">{teamAvg.toFixed(2)}</td>
                                                 <td className={`text-center fw-bold ${getDiffColor(diff)}`}>
@@ -254,6 +496,86 @@ const Comparison = () => {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* --- Expected Goals (regression model) --- */}
+                        <div className="mt-4">
+                            <h5>Expected Goals</h5>
+                            {expectedGoalsError ? (
+                                <div className="alert alert-warning mb-0">{expectedGoalsError}</div>
+                            ) : !expectedGoals ? (
+                                <div className="text-muted">Loading expected goals...</div>
+                            ) : (
+                                <div className="table-responsive">
+                                    <table className="table table-bordered w-auto">
+                                        <thead className="text-white bg-dark">
+                                            <tr>
+                                                <th className="text-center">Actual Goals</th>
+                                                <th className="text-center">Expected Goals</th>
+                                                <th className="text-center">Difference</th>
+                                                <th className="text-center">Predicted Goals (Next Match)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td className="text-center">{expectedGoals.actualGoals}</td>
+                                                <td className="text-center">{Math.round(expectedGoals.expectedGoals)}</td>
+                                                <td className="text-center">{Math.round(expectedGoals.diff)}</td>
+                                                <td className="text-center">
+                                                    {getPredictedGoals() ?? "..."}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* --- Goal Probability (Poisson distribution) --- */}
+                        <div className="mt-4">
+                            <div className="d-flex align-items-center gap-2 mb-2">
+                                <h5 className="mb-0">Match Probability</h5>
+                                <select
+                                    className="form-select form-select-sm w-auto"
+                                    value={selectedProbStat}
+                                    onChange={(e) => setSelectedProbStat(e.target.value)}
+                                >
+                                    {probStatLabels.map(({ key, label }) => (
+                                        <option key={key} value={key}>{label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {!probabilities ? (
+                                <div className="text-muted">Loading probabilities...</div>
+                            ) : (
+                                <div className="table-responsive">
+                                    <table className="table table-striped table-hover" style={{ width: "500px" }}>
+                                        <thead className="text-white bg-dark">
+                                            <tr>
+                                                <th className="text-center" style={{ width: "40%" }}>
+                                                    {probStatLabels.find(s => s.key === selectedProbStat)?.label}
+                                                </th>
+                                                <th className="text-center" style={{ width: "30%" }}>Player Probability</th>
+                                                <th className="text-center" style={{ width: "30%" }}>Team Probability</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {probabilities.stats?.[selectedProbStat]?.player.distribution.map((row, idx) => {
+                                                const teamRow = probabilities.stats[selectedProbStat].team.distribution[idx];
+                                                return (
+                                                    <tr key={row.k}>
+                                                        <td className="text-center fw-semibold">{row.k}</td>
+                                                        <td className="text-center">{(row.probability * 100).toFixed(1)}%</td>
+                                                        <td className="text-center">{(teamRow.probability * 100).toFixed(1)}%</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                        </>
                     )}
                 </div>
             </div>
