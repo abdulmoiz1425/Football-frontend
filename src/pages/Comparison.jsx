@@ -119,7 +119,7 @@ const Comparison = () => {
         }
     };
 
-    const getDifferenceDiff = (playerVal, teamVal) => {
+    const getPercentageDiff = (playerVal, teamVal) => {
         const p = parseFloat(playerVal) || 0;
         const t = parseFloat(teamVal) || 0;
 
@@ -340,7 +340,7 @@ const Comparison = () => {
                 const rawPlayerVal = parseFloat(safeRaw[key] || 0);
                 const playerAvg = parseFloat(safePlayer[key] || 0);
                 const teamAvg = parseFloat(safeTeam[key] || 0);
-                ws1.addRow([label, rawPlayerVal, playerAvg.toFixed(2), teamAvg.toFixed(2), getDifferenceDiff(playerAvg, teamAvg) + "%"]);
+                ws1.addRow([label, rawPlayerVal, playerAvg.toFixed(2), teamAvg.toFixed(2), getPercentageDiff(playerAvg, teamAvg) + "%"]);
             });
 
             // ── Sheet 2: Expected Goals ───────────────────────────────────────
@@ -348,7 +348,7 @@ const Comparison = () => {
                 const ws2 = wb.addWorksheet("Expected Goals");
                 ws2.columns = [{ width: 20 }, { width: 20 }, { width: 16 }, { width: 30 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }];
                 addLogoAndHeader(ws2, "Expected Goals Analysis");
-                darkHeader(ws2.addRow(["Current Goal", "Expected Growth", "Difference", "Predicted Goals (Next Match)"]));
+                darkHeader(ws2.addRow(["Current Goal", "Expected Growth", "Percentage", "Predicted Goals (Next Match)"]));
                 ws2.addRow([
                     expectedGoals.actualGoals,
                     Math.round(expectedGoals.expectedGoals),
@@ -488,7 +488,7 @@ const Comparison = () => {
                                         const playerAvg = parseFloat(safePlayer[key] || 0);
                                         const teamAvg = parseFloat(safeTeam[key] || 0);
 
-                                        const diff = getDifferenceDiff(playerAvg, teamAvg);
+                                        const diff = getPercentageDiff(playerAvg, teamAvg);
 
                                         return (
                                             <tr key={key}>
@@ -521,7 +521,7 @@ const Comparison = () => {
                                             <tr>
                                                 <th className="text-center">Current Goal</th>
                                                 <th className="text-center">Expected Growth</th>
-                                                <th className="text-center">Difference</th>
+                                                <th className="text-center">Percentage</th>
                                                 <th className="text-center">Predicted Goals (Next Match)</th>
                                             </tr>
                                         </thead>
