@@ -119,7 +119,7 @@ const Comparison = () => {
         }
     };
 
-    const getPercentageDiff = (playerVal, teamVal) => {
+    const getDifferenceDiff = (playerVal, teamVal) => {
         const p = parseFloat(playerVal) || 0;
         const t = parseFloat(teamVal) || 0;
 
@@ -148,20 +148,19 @@ const Comparison = () => {
 
     // statLabels for the main table and the modal, excluding 'matches' from the list
     const statLabels = [
-        { key: "goals", label: "Goals" },
-        { key: "assists", label: "Assists" },
-        { key: "shots", label: "Shots" },
-        { key: "shots_on_goal", label: "Shots On Goal" },
-        { key: "big_chances", label: "Big Chances" },
-        { key: "key_passes", label: "Key Passes" },
-        { key: "tackles", label: "Tackles" },
-        { key: "pass_completion_pct", label: "Pass %" },
-        // Minutes is the total raw minutes, but the average is used in the comparison table
-        { key: "minutes", label: "Minutes" }, 
-        { key: "cautions", label: "Cautions" },
-        { key: "ejections", label: "Ejections" },
-        { key: "progressive_carries", label: "Progressive Carries" },
-        { key: "defensive_actions", label: "Defensive Actions" },
+        { key: "goals", label: "Goals", desc: "The total number of goals scored by a player in a season" },
+        { key: "assists", label: "Assists", desc: "Passes that directly lead to a goal being scored in a season" },
+        { key: "shots", label: "Shots", desc: "The total number of attempts a player makes to score, including shots on target and those that miss the goal in a season" },
+        { key: "shots_on_goal", label: "Shots On Goal", desc: "The number of shots that are on target, meaning they would have resulted in a goal if not saved by the goalkeeper in a season" },
+        { key: "big_chances", label: "Big Chances", desc: "Situations where a player is expected to score, typically in one-on-one scenarios or from very close range. This includes penalties in a season" },
+        { key: "key_passes", label: "Key Passes", desc: "Passes that lead directly to a shot on goal, indicating a player's ability to create scoring opportunities in a season" },
+        { key: "tackles", label: "Tackles", desc: "Defensive actions where a player attempts to take the ball away from an opponent. This can be categorized into tackles won and tackles lost in a season" },
+        { key: "pass_completion_pct", label: "Pass %", desc: "The ratio of successful passes to total passes attempted, indicating a player's passing accuracy in a season" },
+        { key: "minutes", label: "Minutes", desc: "The total time a player spends on the field during matches, which can be crucial for evaluating their overall contribution in a season" },
+        { key: "cautions", label: "Cautions", desc: "Yellow cards received by a player, which can impact their availability for future matches in a season" },
+        { key: "ejections", label: "Ejections", desc: "Red cards received by a player, which can impact their availability for future matches in a season" },
+        { key: "progressive_carries", label: "Progressive Carries", desc: "Instances where a player carries the ball forward more than five meters, contributing to the team's attacking play in a season" },
+        { key: "defensive_actions", label: "Defensive Actions", desc: "Includes tackles, interceptions, and blocks made by a player, reflecting their defensive contributions in a season" },
     ];
 
     // Stats supported by the Poisson probability endpoint (count-based stats only)
@@ -279,6 +278,15 @@ const Comparison = () => {
 
         setDownloading(true);
         try {
+            const token = localStorage.getItem("authToken");
+
+            // Fetch player name from profile endpoint
+            const profileRes = await fetch(`${BASE_URL}/api/coach/players/${playerId}/profile`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const profileJson = await profileRes.json();
+            const excelFileName = profileJson.player?.p_name || `player-${playerId}`;
+
             // Load logo as base64
             const logoBase64 = await fetch("/images/football-vector-free-11.png")
                 .then(r => r.blob())
@@ -332,7 +340,7 @@ const Comparison = () => {
                 const rawPlayerVal = parseFloat(safeRaw[key] || 0);
                 const playerAvg = parseFloat(safePlayer[key] || 0);
                 const teamAvg = parseFloat(safeTeam[key] || 0);
-                ws1.addRow([label, rawPlayerVal, playerAvg.toFixed(2), teamAvg.toFixed(2), getPercentageDiff(playerAvg, teamAvg) + "%"]);
+                ws1.addRow([label, rawPlayerVal, playerAvg.toFixed(2), teamAvg.toFixed(2), getDifferenceDiff(playerAvg, teamAvg) + "%"]);
             });
 
             // ── Sheet 2: Expected Goals ───────────────────────────────────────
@@ -340,11 +348,13 @@ const Comparison = () => {
                 const ws2 = wb.addWorksheet("Expected Goals");
                 ws2.columns = [{ width: 20 }, { width: 20 }, { width: 16 }, { width: 30 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }];
                 addLogoAndHeader(ws2, "Expected Goals Analysis");
-                darkHeader(ws2.addRow(["Actual Goals", "Expected Goals", "Difference", "Predicted Goals (Next Match)"]));
+                darkHeader(ws2.addRow(["Current Goal", "Expected Growth", "Difference", "Predicted Goals (Next Match)"]));
                 ws2.addRow([
                     expectedGoals.actualGoals,
                     Math.round(expectedGoals.expectedGoals),
-                    Math.round(expectedGoals.diff),
+                    expectedGoals.actualGoals
+                        ? (((expectedGoals.expectedGoals - expectedGoals.actualGoals) / expectedGoals.actualGoals) * 100).toFixed(1) + "%"
+                        : "N/A",
                     getPredictedGoals() ?? "",
                 ]);
             }
@@ -369,7 +379,7 @@ const Comparison = () => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `player-${playerId}-comparison.xlsx`;
+            a.download = `${excelFileName}.xlsx`;
             a.click();
             URL.revokeObjectURL(url);
 
@@ -478,7 +488,7 @@ const Comparison = () => {
                                         const playerAvg = parseFloat(safePlayer[key] || 0);
                                         const teamAvg = parseFloat(safeTeam[key] || 0);
 
-                                        const diff = getPercentageDiff(playerAvg, teamAvg);
+                                        const diff = getDifferenceDiff(playerAvg, teamAvg);
 
                                         return (
                                             <tr key={key}>
@@ -509,8 +519,8 @@ const Comparison = () => {
                                     <table className="table table-bordered w-auto">
                                         <thead className="text-white bg-dark">
                                             <tr>
-                                                <th className="text-center">Actual Goals</th>
-                                                <th className="text-center">Expected Goals</th>
+                                                <th className="text-center">Current Goal</th>
+                                                <th className="text-center">Expected Growth</th>
                                                 <th className="text-center">Difference</th>
                                                 <th className="text-center">Predicted Goals (Next Match)</th>
                                             </tr>
@@ -519,7 +529,11 @@ const Comparison = () => {
                                             <tr>
                                                 <td className="text-center">{expectedGoals.actualGoals}</td>
                                                 <td className="text-center">{Math.round(expectedGoals.expectedGoals)}</td>
-                                                <td className="text-center">{Math.round(expectedGoals.diff)}</td>
+                                                <td className="text-center">
+                                                    {expectedGoals.actualGoals
+                                                        ? (((expectedGoals.expectedGoals - expectedGoals.actualGoals) / expectedGoals.actualGoals) * 100).toFixed(1) + "%"
+                                                        : "N/A"}
+                                                </td>
                                                 <td className="text-center">
                                                     {getPredictedGoals() ?? "..."}
                                                 </td>
@@ -610,7 +624,10 @@ const Comparison = () => {
                             <tbody>
                                 {/* --- 🎯 Matches Field Added Here (Manual Entry) --- */}
                                 <tr>
-                                    <td className="fw-bold">Matches Played</td>
+                                    <td className="fw-bold">
+                                        Matches
+                                        <div className="text-muted fw-normal" style={{ fontSize: "0.78rem" }}>Total matches played during a season</div>
+                                    </td>
                                     <td className="text-center">
                                         <input
                                             type="number"
@@ -629,9 +646,12 @@ const Comparison = () => {
                                     </td>
                                 </tr>
                                 {/* --- Other Stats start here (Mapped) --- */}
-                                {statLabels.map(({ key, label }) => (
+                                {statLabels.map(({ key, label, desc }) => (
                                     <tr key={key}>
-                                        <td>{label}</td>
+                                        <td>
+                                            <span className="fw-bold">{label}</span>
+                                            {desc && <div className="text-muted fw-normal" style={{ fontSize: "0.78rem" }}>{desc}</div>}
+                                        </td>
                                         <td className="text-center">
                                             <input
                                                 type="number"
