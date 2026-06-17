@@ -348,7 +348,7 @@ const Comparison = () => {
                 const ws2 = wb.addWorksheet("Expected Goals");
                 ws2.columns = [{ width: 20 }, { width: 20 }, { width: 16 }, { width: 30 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }];
                 addLogoAndHeader(ws2, "Expected Goals Analysis");
-                darkHeader(ws2.addRow(["Current Goal", "Expected Growth", "Percentage", "Predicted Goals (Next Match)"]));
+                darkHeader(ws2.addRow(["Current Goal", "Expected Growth", "Performance Rate(%)", "Predicted Goals (Next Match)"]));
                 ws2.addRow([
                     expectedGoals.actualGoals,
                     Math.round(expectedGoals.expectedGoals),
@@ -521,7 +521,7 @@ const Comparison = () => {
                                             <tr>
                                                 <th className="text-center">Current Goal</th>
                                                 <th className="text-center">Expected Growth</th>
-                                                <th className="text-center">Percentage</th>
+                                                <th className="text-center">Performance Rate(%)</th>
                                                 <th className="text-center">Predicted Goals (Next Match)</th>
                                             </tr>
                                         </thead>
