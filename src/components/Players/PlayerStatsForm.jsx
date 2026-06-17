@@ -5,20 +5,20 @@ const BASE_URL = import.meta.env.VITE_BACKEND_API_BASE_URL;
 
 // Same fields the coach can edit on the Comparison page's "Edit Stats" modal
 const statFields = [
-  { key: "matches", label: "Matches Played" },
-  { key: "goals", label: "Goals" },
-  { key: "assists", label: "Assists" },
-  { key: "shots", label: "Shots" },
-  { key: "shots_on_goal", label: "Shots On Goal" },
-  { key: "big_chances", label: "Big Chances" },
-  { key: "key_passes", label: "Key Passes" },
-  { key: "tackles", label: "Tackles" },
-  { key: "pass_completion_pct", label: "Pass %" },
-  { key: "minutes", label: "Minutes" },
-  { key: "cautions", label: "Cautions" },
-  { key: "ejections", label: "Ejections" },
-  { key: "progressive_carries", label: "Progressive Carries" },
-  { key: "defensive_actions", label: "Defensive Actions" },
+  { key: "matches",            label: "Matches",             desc: "Total matches played during a season" },
+  { key: "goals",              label: "Goals",               desc: "The total number of goals scored by a player in a season" },
+  { key: "assists",            label: "Assists",             desc: "Passes that directly lead to a goal being scored in a season" },
+  { key: "shots",              label: "Shots",               desc: "The total number of attempts a player makes to score, including shots on target and those that miss the goal in a season" },
+  { key: "shots_on_goal",      label: "Shots On Goal",       desc: "The number of shots that are on target, meaning they would have resulted in a goal if not saved by the goalkeeper in a season" },
+  { key: "big_chances",        label: "Big Chances",         desc: "Situations where a player is expected to score, typically in one-on-one scenarios or from very close range. This includes penalties in a season" },
+  { key: "key_passes",         label: "Key Passes",          desc: "Passes that lead directly to a shot on goal, indicating a player's ability to create scoring opportunities in a season" },
+  { key: "tackles",            label: "Tackles",             desc: "Defensive actions where a player attempts to take the ball away from an opponent. This can be categorized into tackles won and tackles lost in a season" },
+  { key: "pass_completion_pct",label: "Pass %",              desc: "The ratio of successful passes to total passes attempted, indicating a player's passing accuracy in a season" },
+  { key: "minutes",            label: "Minutes",             desc: "The total time a player spends on the field during matches, which can be crucial for evaluating their overall contribution in a season" },
+  { key: "cautions",           label: "Cautions",            desc: "Yellow cards received by a player, which can impact their availability for future matches in a season" },
+  { key: "ejections",          label: "Ejections",           desc: "Red cards received by a player, which can impact their availability for future matches in a season" },
+  { key: "progressive_carries",label: "Progressive Carries", desc: "Instances where a player carries the ball forward more than five meters, contributing to the team's attacking play in a season" },
+  { key: "defensive_actions",  label: "Defensive Actions",   desc: "Includes tackles, interceptions, and blocks made by a player, reflecting their defensive contributions in a season" },
 ];
 
 const PlayerStatsForm = () => {
@@ -151,9 +151,12 @@ const PlayerStatsForm = () => {
               </tr>
             </thead>
             <tbody>
-              {statFields.map(({ key, label }) => (
+              {statFields.map(({ key, label, desc }) => (
                 <tr key={key}>
-                  <td>{label}</td>
+                  <td>
+                    <span className="fw-bold">{label}</span>
+                    {desc && <div className="text-muted fw-normal" style={{ fontSize: "0.78rem" }}>{desc}</div>}
+                  </td>
                   <td className="text-center">
                     <input
                       type="number"

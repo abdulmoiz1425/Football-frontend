@@ -348,14 +348,13 @@ const Comparison = () => {
                 const ws2 = wb.addWorksheet("Expected Goals");
                 ws2.columns = [{ width: 20 }, { width: 20 }, { width: 16 }, { width: 30 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }];
                 addLogoAndHeader(ws2, "Expected Goals Analysis");
-                darkHeader(ws2.addRow(["Current Goal", "Expected Growth", "Performance Rate(%)", "Predicted Goals (Next Match)"]));
+                darkHeader(ws2.addRow(["Current Goal", "Expected Goal", "Growth Rate(%)"]));
                 ws2.addRow([
                     expectedGoals.actualGoals,
                     Math.round(expectedGoals.expectedGoals),
                     expectedGoals.actualGoals
                         ? (((expectedGoals.expectedGoals - expectedGoals.actualGoals) / expectedGoals.actualGoals) * 100).toFixed(1) + "%"
                         : "N/A",
-                    getPredictedGoals() ?? "",
                 ]);
             }
 
@@ -520,9 +519,8 @@ const Comparison = () => {
                                         <thead className="text-white bg-dark">
                                             <tr>
                                                 <th className="text-center">Current Goal</th>
-                                                <th className="text-center">Expected Growth</th>
-                                                <th className="text-center">Performance Rate(%)</th>
-                                                <th className="text-center">Predicted Goals (Next Match)</th>
+                                                <th className="text-center">Expected Goal</th>
+                                                <th className="text-center">Growth Rate(%)</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -533,9 +531,6 @@ const Comparison = () => {
                                                     {expectedGoals.actualGoals
                                                         ? (((expectedGoals.expectedGoals - expectedGoals.actualGoals) / expectedGoals.actualGoals) * 100).toFixed(1) + "%"
                                                         : "N/A"}
-                                                </td>
-                                                <td className="text-center">
-                                                    {getPredictedGoals() ?? "..."}
                                                 </td>
                                             </tr>
                                         </tbody>
