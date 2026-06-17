@@ -181,6 +181,14 @@ const TeamComparisonPage = () => {
         try {
             const token = localStorage.getItem("authToken");
 
+            // Fetch team name
+            const teamsRes = await fetch(`${BASE_URL}/api/coach/players/teams`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const teamsJson = await teamsRes.json();
+            const teamObj = (teamsJson.data || []).find(t => String(t.team_id) === String(teamId));
+            const excelFileName = teamObj?.team_name || `team-${teamId}`;
+
             // Load logo as base64
             const logoBase64 = await fetch("/images/football-vector-free-11.png")
                 .then(r => r.blob())
@@ -267,7 +275,7 @@ const TeamComparisonPage = () => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `team-${teamId}-stats.xlsx`;
+            a.download = `${excelFileName}.xlsx`;
             a.click();
             URL.revokeObjectURL(url);
 
